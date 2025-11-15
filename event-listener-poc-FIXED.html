@@ -423,7 +423,7 @@
             </p>
 
             <h3>🔧 Implementation Note:</h3>
-            <p style="font-size: 12px; color: #666;">
+            <p style={{fontSize: '12px', color: '#666'}}>
               <strong>Technical Detail:</strong> The buggy version still attaches listeners directly in the component body
               (demonstrating the bug), but uses <code>useLayoutEffect</code> for logging to prevent infinite render loops
               caused by calling <code>addLog</code> during render. This doesn't affect the listener accumulation bug itself.
@@ -433,7 +433,8 @@
       );
     };
 
-    ReactDOM.render(<App />, document.getElementById('root'));
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
   </script>
 </body>
 </html>
