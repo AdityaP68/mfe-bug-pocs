@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MFE Event Listener Bug - Real POC</title>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      padding: 20px;
+      max-width: 1400px;
+      margin: 0 auto;
+      background: #f5f5f5;
+    }
+    .header {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .demo-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+    .demo-box {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .buggy { border-left: 4px solid #f44336; }
+    .fixed { border-left: 4px solid #4caf50; }
+
+    h1 { margin: 0 0 10px 0; color: #333; }
+    h2 { margin-top: 0; color: #333; font-size: 20px; }
+    h3 { color: #666; font-size: 16px; }
+
+    button {
+      padding: 10px 20px;
+      margin: 5px;
+      cursor: pointer;
+      border: none;
+      border-radius: 4px;
+      font-weight: bold;
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+    button:hover { transform: translateY(-1px); opacity: 0.9; }
+    .btn-primary { background: #2196f3; color: white; }
+    .btn-danger { background: #f44336; color: white; }
+    .btn-success { background: #4caf50; color: white; }
+    .btn-warning { background: #ff9800; color: white; }
+    .btn-secondary { background: #607d8b; color: white; }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 10px;
+      margin: 15px 0;
+    }
+    .stat {
+      background: #f9f9f9;
+      padding: 12px;
+      border-radius: 4px;
+      text-align: center;
+    }
+    .stat-label {
+      font-size: 11px;
+      color: #666;
+      text-transform: uppercase;
+      font-weight: bold;
+    }
+    .stat-value {
+      font-size: 24px;
+      font-weight: bold;
+      color: #333;
+      margin-top: 5px;
+    }
+    .stat-value.danger { color: #f44336; }
+    .stat-value.success { color: #4caf50; }
+
+    .log {
+      background: #1e1e1e;
+      color: #d4d4d4;
+      padding: 15px;
+      border-radius: 4px;
+      max-height: 400px;
+      overflow-y: auto;
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      margin-top: 15px;
+      line-height: 1.6;
+    }
+    .log-entry {
+      padding: 3px 0;
+    }
+    .log-dispatch { color: #4fc3f7; }
+    .log-receive { color: #66bb6a; }
+    .log-block { color: #ef5350; font-weight: bold; }
+    .log-attach { color: #ffb74d; }
+    .log-remove { color: #ff8a65; }
+
+    .popup {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: white;
+      padding: 30px;
+      border: 3px solid #4caf50;
+      border-radius: 8px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+      z-index: 1001;
+      min-width: 300px;
+    }
+    .overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 1000;
+    }
+    .alert {
+      padding: 12px;
+      border-radius: 4px;
+      margin: 10px 0;
+      font-weight: 500;
+      font-size: 14px;
+    }
+    .alert-warning { background: #fff3cd; border-left: 4px solid #ff9800; color: #856404; }
+    .alert-success { background: #d4edda; border-left: 4px solid #4caf50; color: #155724; }
+    .alert-info { background: #d1ecf1; border-left: 4px solid #17a2b8; color: #0c5460; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // Global listener registry to track all attached listeners
+    let listenerCount = 0;
+
+    // ========================================
+    // BUGGY MFE 2 - NO useEffect cleanup
+    // ========================================
+    const BuggyMFE2 = ({ addLog }) => {
+      const [isPopupOpen, setIsPopupOpen] = useState(false);
+      const [popupData, setPopupData] = useState(null);
+      const mountId = useRef(`buggy-${Date.now()}`);
+      const renderCount = useRef(0);
+      const [forceUpdate, setForceUpdate] = useState(0);
+      const listenersAttached = useRef(0);
+
+      // Increment render count
+      renderCount.current++;
+      const currentRender = renderCount.current;
+
+      // 🐛 BUG: Listener attached on EVERY render, NO cleanup
+      // This runs every single render!
+      const handleOpenPopup = (e) => {
+        addLog(`❌ BUGGY Listener #${currentRender} received event and calling stopImmediatePropagation()`, 'block');
+
+        e.stopImmediatePropagation();
+
+        addLog(`❌ BUGGY Listener #${currentRender} blocked all subsequent listeners!`, 'block');
+
+        // Try to open popup
+        setIsPopupOpen(true);
+        setPopupData(e.detail);
+      };
+
+      // This runs on EVERY render - creating multiple listeners!
+      window.addEventListener('openPopup', handleOpenPopup);
+      listenersAttached.current++;
+      addLog(`🔴 BUGGY: Attached listener #${currentRender} (Total: ${listenersAttached.current})`, 'attach');
+
+      return (
+        <div className="demo-box buggy">
+          <h2>🐛 BUGGY MFE 2 (No useEffect)</h2>
+          <div className="alert alert-warning">
+            ⚠️ Listener attached on EVERY render WITHOUT cleanup!
+          </div>
+
+          <div className="stats">
+            <div className="stat">
+              <div className="stat-label">Renders</div>
+              <div className="stat-value danger">{renderCount.current}</div>
+            </div>
+            <div className="stat">
+              <div className="stat-label">Listeners</div>
+              <div className="stat-value danger">{listenersAttached.current}</div>
+            </div>
+          </div>
+
+          <button
+            className="btn-warning"
+            onClick={() => setForceUpdate(prev => prev + 1)}
+          >
+            🔄 Force Re-render ({forceUpdate})
+          </button>
+
+          {isPopupOpen && (
+            <>
+              <div className="overlay" onClick={() => setIsPopupOpen(false)} />
+              <div className="popup">
+                <h3>✅ Buggy Popup Opened</h3>
+                <p><strong>Event #{popupData?.eventNumber}</strong></p>
+                <p><small>Opened by listener #{currentRender}</small></p>
+                <button className="btn-success" onClick={() => setIsPopupOpen(false)}>
+                  Close
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      );
+    };
+
+    // ========================================
+    // FIXED MFE 2 - WITH useEffect cleanup
+    // ========================================
+    const FixedMFE2 = ({ addLog }) => {
+      const [isPopupOpen, setIsPopupOpen] = useState(false);
+      const [popupData, setPopupData] = useState(null);
+      const mountId = useRef(`fixed-${Date.now()}`);
+      const renderCount = useRef(0);
+      const [forceUpdate, setForceUpdate] = useState(0);
+
+      renderCount.current++;
+
+      // ✅ FIX: Listener in useEffect with cleanup
+      useEffect(() => {
+        const handleOpenPopup = (e) => {
+          addLog(`✅ FIXED Listener received event and calling stopImmediatePropagation()`, 'receive');
+
+          e.stopImmediatePropagation();
+
+          addLog(`✅ FIXED Listener blocked subsequent listeners (but only 1 exists anyway)`, 'receive');
+
+          setIsPopupOpen(true);
+          setPopupData(e.detail);
+        };
+
+        window.addEventListener('openPopup', handleOpenPopup);
+        addLog(`🟢 FIXED: Attached listener (always only 1)`, 'attach');
+
+        // Cleanup function removes the listener
+        return () => {
+          window.removeEventListener('openPopup', handleOpenPopup);
+          addLog(`🧹 FIXED: Removed listener on cleanup`, 'remove');
+        };
+      }, []); // Empty dependency array = runs once
+
+      return (
+        <div className="demo-box fixed">
+          <h2>✅ FIXED MFE 2 (With useEffect)</h2>
+          <div className="alert alert-success">
+            ✓ Listener managed properly with useEffect cleanup
+          </div>
+
+          <div className="stats">
+            <div className="stat">
+              <div className="stat-label">Renders</div>
+              <div className="stat-value">{renderCount.current}</div>
+            </div>
+            <div className="stat">
+              <div className="stat-label">Listeners</div>
+              <div className="stat-value success">1</div>
+            </div>
+          </div>
+
+          <button
+            className="btn-warning"
+            onClick={() => setForceUpdate(prev => prev + 1)}
+          >
+            🔄 Force Re-render ({forceUpdate})
+          </button>
+
+          {isPopupOpen && (
+            <>
+              <div className="overlay" onClick={() => setIsPopupOpen(false)} />
+              <div className="popup">
+                <h3>✅ Fixed Popup Opened</h3>
+                <p><strong>Event #{popupData?.eventNumber}</strong></p>
+                <button className="btn-success" onClick={() => setIsPopupOpen(false)}>
+                  Close
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      );
+    };
+
+    // ========================================
+    // MFE 1 - TRIGGER
+    // ========================================
+    const MFE1Trigger = ({ addLog }) => {
+      const [eventCount, setEventCount] = useState(0);
+
+      const sendEvent = () => {
+        const count = eventCount + 1;
+        setEventCount(count);
+
+        addLog(`📡 MFE1: Dispatching 'openPopup' event #${count}`, 'dispatch');
+
+        const event = new CustomEvent('openPopup', {
+          detail: { source: 'MFE1', eventNumber: count, timestamp: Date.now() }
+        });
+
+        window.dispatchEvent(event);
+      };
+
+      return (
+        <div className="demo-box" style={{gridColumn: '1 / -1'}}>
+          <h2>📡 MFE 1 - Event Trigger</h2>
+          <div className="alert alert-info">
+            Dispatches custom event using: <code>window.dispatchEvent(new CustomEvent('openPopup'))</code>
+          </div>
+
+          <button className="btn-primary" onClick={sendEvent}>
+            🚀 Dispatch 'openPopup' Event
+          </button>
+
+          <div className="stats">
+            <div className="stat">
+              <div className="stat-label">Events Sent</div>
+              <div className="stat-value">{eventCount}</div>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    // ========================================
+    // MAIN APP
+    // ========================================
+    const App = () => {
+      const [logs, setLogs] = useState([]);
+      const logEndRef = useRef(null);
+
+      const addLog = (message, type) => {
+        const timestamp = new Date().toLocaleTimeString() + '.' + new Date().getMilliseconds();
+        setLogs(prev => [...prev, { message, type, timestamp, id: Date.now() + Math.random() }]);
+      };
+
+      useEffect(() => {
+        logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, [logs]);
+
+      const clearLogs = () => setLogs([]);
+
+      return (
+        <div>
+          <div className="header">
+            <h1>🔬 Microfrontend Event Listener Bug - Proof of Concept</h1>
+            <p><strong>Scenario:</strong> MFE1 dispatches custom event on window → MFE2 listens and opens popup</p>
+
+            <div className="alert alert-warning">
+              <strong>⚠️ THE BUG:</strong> Without useEffect cleanup, each re-render attaches a NEW listener to window.
+              When event fires, the FIRST (oldest) listener calls stopImmediatePropagation() and blocks all newer listeners!
+            </div>
+
+            <button className="btn-danger" onClick={clearLogs}>
+              🗑️ Clear Logs
+            </button>
+          </div>
+
+          <div className="demo-container">
+            <MFE1Trigger addLog={addLog} />
+            <BuggyMFE2 addLog={addLog} />
+            <FixedMFE2 addLog={addLog} />
+          </div>
+
+          <div className="demo-box">
+            <h3>📝 Real-Time Event Log</h3>
+            <div className="log">
+              {logs.length === 0 && <div style={{color: '#888'}}>No events yet. Follow the steps below to reproduce the bug!</div>}
+              {logs.map((log) => (
+                <div key={log.id} className={`log-entry log-${log.type}`}>
+                  [{log.timestamp}] {log.message}
+                </div>
+              ))}
+              <div ref={logEndRef} />
+            </div>
+          </div>
+
+          <div className="demo-box">
+            <h3>🧪 Steps to Reproduce the Bug:</h3>
+            <ol>
+              <li><strong>Click "Force Re-render" on BUGGY version</strong> 5-10 times (watch log - multiple listeners attached!)</li>
+              <li><strong>Click "Dispatch Event"</strong> from MFE1</li>
+              <li><strong>Observe:</strong> The FIRST listener (from earliest render) receives event and blocks others</li>
+              <li><strong>Compare:</strong> Try same with FIXED version - re-renders don't create multiple listeners</li>
+            </ol>
+
+            <h3>💡 Key Observations:</h3>
+            <ul>
+              <li><strong>Buggy:</strong> Each re-render adds listener, but old ones are never removed</li>
+              <li><strong>First listener wins:</strong> Whoever calls stopImmediatePropagation() first blocks the rest</li>
+              <li><strong>Fixed:</strong> useEffect cleanup removes old listener before adding new one</li>
+              <li><strong>Result:</strong> Fixed version always has exactly 1 listener, buggy accumulates N listeners</li>
+            </ul>
+
+            <h3>✅ Why This Caused "Sometimes Doesn't Work":</h3>
+            <p>
+              In your real MFE setup, when MFE2 mounted/unmounted or re-rendered multiple times,
+              orphaned listeners from old renders would still be attached to window. When the event
+              fired, if an old listener executed first and called stopImmediatePropagation(), it would
+              block the current valid listener from opening the popup. The fix with useEffect cleanup
+              ensures only the current listener exists.
+            </p>
+          </div>
+        </div>
+      );
+    };
+
+    ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
+</body>
+</html>
