@@ -1,210 +1,204 @@
-# MFE Event Listener Bug POC - Verification Results
+# MFE Event Listener Bug POC - React Project
 
-## Summary
+This repository contains a **React-based Proof of Concept (POC)** demonstrating event listener cleanup issues in Webpack Module Federation microfrontends.
 
-I've verified your POC and found **one critical issue** that prevents it from working, but the overall concept and implementation are **excellent**.
+## 🏗️ Project Structure
 
-## Files Created
+This project consists of two React applications using Webpack Module Federation:
 
-1. **event-listener-poc.html** - Your original POC (saved for reference)
-2. **event-listener-poc-FIXED.html** - Corrected version that works properly
-3. **VERIFICATION_REPORT.md** - Detailed technical verification report
-4. **README.md** - This summary
-
----
-
-## ✅ What's CORRECT
-
-Your POC correctly demonstrates:
-
-1. **✅ Standard Browser APIs** - Uses `window.addEventListener`, `window.dispatchEvent`, `new CustomEvent` (not custom EventTarget)
-2. **✅ Buggy Pattern** - Listener attached in component body, outside useEffect
-3. **✅ No Cleanup** - No `removeEventListener` in buggy version
-4. **✅ Fixed Pattern** - Listener in useEffect with proper cleanup and empty deps `[]`
-5. **✅ stopImmediatePropagation** - Both handlers call it correctly
-6. **✅ Listener Tracking** - Counter increments showing accumulation
-7. **✅ Evidence Logging** - Comprehensive, timestamped, color-coded logs
-8. **✅ UI/UX** - Excellent design, clear instructions, side-by-side comparison
-
----
-
-## ❌ Critical Issue Found
-
-### Problem: Infinite Render Loop
-
-**Location:** BuggyMFE2 component, line 178
-
-```javascript
-const BuggyMFE2 = ({ addLog }) => {
-  // ... component logic ...
-
-  // ❌ PROBLEM: This runs during render phase
-  window.addEventListener('openPopup', handleOpenPopup);
-  listenersAttached.current++;
-  addLog(`🔴 BUGGY: Attached listener...`, 'attach');  // ← Calls setLogs in parent!
-
-  return <div>...</div>;
-};
+```
+mfe-bug-pocs/
+├── host-app/          # Container application (runs on port 3000)
+│   ├── src/
+│   │   └── App.js    # Main app that loads remote MFE
+│   └── craco.config.js
+│
+├── remote-mfe/        # Remote microfrontend (runs on port 3001)
+│   ├── src/
+│   │   └── RemoteComponent.jsx  # Component with event listeners
+│   └── craco.config.js
+│
+└── README.md
 ```
 
-### Why This Breaks
+## 🐛 What This POC Demonstrates
 
-1. BuggyMFE2 renders
-2. `addLog` called **during render** → updates App state (logs array)
-3. App re-renders with new logs
-4. BuggyMFE2 re-renders
-5. `addLog` called again → updates App state
-6. **→ INFINITE LOOP** 🔄
+This POC demonstrates a critical bug in microfrontend applications:
 
-### React Rule Violated
+**When a remote MFE component is unmounted, event listeners attached to the document/window may not be properly cleaned up, leading to:**
 
-> **Never update state during the render phase.**
->
-> State updates during render cause the component to re-render immediately. If the same update happens again, it creates an infinite loop.
+1. ❌ Memory leaks
+2. ❌ Event handlers executing on unmounted components
+3. ❌ Stale closures accessing outdated state
+4. ❌ Unexpected application behavior
 
-### Impact
+## 🚀 Getting Started
 
-- Browser may freeze/become unresponsive
-- React may throw error: "Cannot update during an existing state transition"
-- POC won't function
+### Prerequisites
 
----
+- Node.js (v14 or higher)
+- npm or yarn
 
-## ✅ The Fix
+### Installation & Running
 
-The corrected version (**event-listener-poc-FIXED.html**) uses `useLayoutEffect` for logging:
+You need to run **both applications simultaneously** in separate terminal windows.
+
+#### Terminal 1 - Remote MFE (Port 3001)
+
+```bash
+cd remote-mfe
+npm install
+npm start
+```
+
+This will start the remote microfrontend on http://localhost:3001
+
+#### Terminal 2 - Host App (Port 3000)
+
+```bash
+cd host-app
+npm install
+npm start
+```
+
+This will start the host application on http://localhost:3000
+
+### Opening the Application
+
+Once both servers are running, open your browser to:
+
+```
+http://localhost:3000
+```
+
+## 🧪 How to Test the Bug
+
+1. **Open the application** at http://localhost:3000
+2. **Open browser DevTools console** (F12 or right-click → Inspect → Console)
+3. **Click "Mount Remote MFE"** to load the remote component
+   - Observe console logs showing event listener being added
+4. **Click anywhere on the page**
+   - Watch the click counter increment in the remote component
+   - See console logs from the remote component
+5. **Click "Unmount Remote MFE"** to remove the component
+   - Observe console log showing cleanup being called
+6. **Continue clicking anywhere on the page**
+7. **Observe the bug:**
+   - If event listeners were NOT properly cleaned up, you'll continue seeing console logs from the remote component even after it's unmounted
+   - This proves the event listener is still attached even though the component is gone
+
+## 📊 Expected vs Actual Behavior
+
+### ✅ Expected (Correct Behavior)
+
+After unmounting the remote component:
+- **No console logs** from the remote component should appear
+- **No event handlers** from the unmounted component should execute
+- **Memory should be freed** properly
+
+### ❌ Actual (Bug Behavior)
+
+After unmounting the remote component:
+- Console logs may still appear from the remote component
+- Event handlers continue to execute
+- Memory leak occurs as listeners persist
+
+## 🔧 Technical Details
+
+### Module Federation Configuration
+
+Both applications use Webpack Module Federation configured via CRACO (Create React App Configuration Override):
+
+**Host App (host-app/craco.config.js)**
+```javascript
+remotes: {
+  remoteMfe: "remoteMfe@http://localhost:3001/remoteEntry.js",
+}
+```
+
+**Remote MFE (remote-mfe/craco.config.js)**
+```javascript
+exposes: {
+  "./RemoteComponent": "./src/RemoteComponent",
+}
+```
+
+### Event Listener Pattern
+
+The remote component uses React's `useEffect` hook to manage event listeners:
 
 ```javascript
-const BuggyMFE2 = ({ addLog }) => {
-  const [isPopupOpen, setIsPopupOpen] = useState(false);
-  const renderCount = useRef(0);
-  const listenersAttached = useRef(0);
-  const prevRenderCount = useRef(0);
-
-  renderCount.current++;
-  const currentRender = renderCount.current;
-
-  const handleOpenPopup = (e) => {
-    addLog(`❌ BUGGY Listener #${currentRender} received event`, 'block');
-    e.stopImmediatePropagation();
-    setIsPopupOpen(true);
-    setPopupData(e.detail);
+useEffect(() => {
+  const handleClick = () => {
+    console.log('Click event fired');
+    setClicks(prev => prev + 1);
   };
 
-  // ❌ BUG STILL PRESENT: Attach listener on every render (this is the bug we're demonstrating!)
-  window.addEventListener('openPopup', handleOpenPopup);
-  listenersAttached.current++;
+  document.addEventListener('click', handleClick);
 
-  // ✅ FIX FOR INFINITE LOOP: Log AFTER render
-  useLayoutEffect(() => {
-    if (prevRenderCount.current !== renderCount.current) {
-      addLog(`🔴 BUGGY: Attached listener #${currentRender} (Total: ${listenersAttached.current})`, 'attach');
-      prevRenderCount.current = renderCount.current;
-    }
-  });
-
-  return (/* ... */);
-};
+  return () => {
+    document.removeEventListener('click', handleClick);
+  };
+}, []);
 ```
 
-### Why This Works
+## 🐞 Understanding the Bug
 
-- **Listener still attached in component body** (demonstrates the bug ✓)
-- **No cleanup** (demonstrates the bug ✓)
-- **Logging happens in useLayoutEffect** (runs after render, prevents infinite loop ✓)
-- **Doesn't change the bug being demonstrated** ✓
+The bug occurs when:
 
----
+1. A remote MFE component attaches event listeners to `document` or `window`
+2. The component's cleanup function (return from useEffect) is not called properly
+3. When the remote component unmounts, the event listener persists
+4. The listener still holds references to the component's state and functions
+5. This creates a memory leak and causes unexpected behavior
 
-## 🧪 Testing the Fixed Version
+## 🔍 Debugging Tips
 
-### Expected Behavior
+When testing, watch for:
 
-1. **Open event-listener-poc-FIXED.html in browser**
-   - Should load without freezing
-   - Should show both components with 1 render, appropriate listener counts
-   - No console errors
+- **Console logs** prefixed with `🔵 [Remote MFE]` appearing after unmount
+- **Click counter** continuing to increment after component is gone
+- **Multiple event listeners** accumulating with each mount/unmount cycle
+- **Memory usage** increasing in browser DevTools Performance tab
 
-2. **Click "Force Re-render" on BUGGY 5 times**
-   - Render count: 6
-   - Listener count: 6 (accumulating!)
-   - Log shows: "🔴 BUGGY: Attached listener #1", "#2", "#3"... etc.
+## 📝 Common Scenarios Where This Bug Appears
 
-3. **Click "Force Re-render" on FIXED 5 times**
-   - Render count: 6
-   - Listener count: 1 (stays constant!)
-   - Log shows: "🟢 FIXED: Attached listener", "🧹 Removed listener" alternating
+1. **Window resize listeners** - Components listening to window resize events
+2. **Scroll listeners** - Components tracking scroll position
+3. **Custom events** - Inter-MFE communication via custom events
+4. **Keyboard shortcuts** - Global keyboard event handlers
+5. **WebSocket/SSE connections** - Real-time data connections
 
-4. **Click "Dispatch Event"**
-   - Log shows: "📡 MFE1: Dispatching event #1"
-   - Log shows: "❌ BUGGY Listener #1 received event" (NOT #6!)
-   - **This proves first-listener-wins!**
-   - Popup opens
+## ✅ How to Fix
 
-5. **Verify First-Listener-Wins Mechanism**
-   - Even though buggy version has 6 listeners
-   - Listener #1 (oldest) executes first
-   - Calls `stopImmediatePropagation()`
-   - Listeners #2-6 are blocked and never execute
-   - This is the core of the bug!
+The fix depends on ensuring cleanup functions are properly called:
 
----
+1. **Always use useEffect** for side effects like event listeners
+2. **Always return a cleanup function** that removes listeners
+3. **Test unmount behavior** thoroughly in development
+4. **Use React DevTools** to verify component unmounting
+5. **Consider using refs** to avoid stale closures
 
-## 📊 Verification Checklist
+## 🤝 Contributing
 
-| Criterion | Original POC | Fixed POC |
-|-----------|--------------|-----------|
-| Uses window.addEventListener | ✅ | ✅ |
-| Buggy: No useEffect | ✅ | ✅ |
-| Buggy: No cleanup | ✅ | ✅ |
-| Fixed: useEffect with cleanup | ✅ | ✅ |
-| stopImmediatePropagation | ✅ | ✅ |
-| Listener tracking | ✅ | ✅ |
-| Evidence logging | ✅ | ✅ |
-| **No infinite loops** | ❌ | ✅ |
-| **Works in browser** | ❌ | ✅ |
+If you find issues or have improvements, please feel free to:
+
+1. Open an issue
+2. Submit a pull request
+3. Share your findings
+
+## 📚 Additional Resources
+
+- [React useEffect Hook](https://react.dev/reference/react/useEffect)
+- [Webpack Module Federation](https://webpack.js.org/concepts/module-federation/)
+- [Memory Leaks in JavaScript](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Memory_Management)
+
+## 📄 License
+
+This is a proof of concept for educational and debugging purposes.
 
 ---
 
-## 🎯 Recommendation
+## Previous Documentation
 
-**Use event-listener-poc-FIXED.html** for your demonstration.
-
-The original POC had the right idea and excellent implementation, but needs the infinite loop fix to actually work.
-
----
-
-## 📝 What the POC Proves
-
-When this fixed POC runs, it proves:
-
-1. **Listener Accumulation**: Without useEffect, each render attaches a new listener
-2. **No Cleanup**: Old listeners are never removed
-3. **FIFO Execution**: Listeners execute in attachment order (oldest first)
-4. **stopImmediatePropagation Blocking**: First listener blocks all others
-5. **The Real-World Bug**: If oldest listener has stale closure/state, popup won't open correctly
-6. **The Fix Works**: useEffect with cleanup prevents accumulation
-
-This matches your real-world microfrontend issue perfectly!
-
----
-
-## 🔍 Next Steps
-
-1. ✅ Review the fixed POC (event-listener-poc-FIXED.html)
-2. ✅ Test it in your browser
-3. ✅ Follow the reproduction steps
-4. ✅ Observe the first-listener-wins behavior
-5. ✅ Use it to educate your team about the bug
-
----
-
-## Questions?
-
-See **VERIFICATION_REPORT.md** for detailed technical analysis, including:
-- Line-by-line code review
-- React lifecycle explanation
-- Alternative fix approaches
-- Comprehensive testing recommendations
-
-**Your POC concept is excellent!** Just needed a small fix to prevent the infinite loop.
+For information about the HTML-based POC that was previously in this repository, see `VERIFICATION_REPORT.md`.
