@@ -4,36 +4,72 @@
 
 This repository contains multiple demonstrations of the microfrontend event listener accumulation bug:
 
-1. **React-based POC** - Side-by-side comparison of buggy vs. fixed patterns
-2. **Interactive Simulation** - Vanilla JS simulation showing the bug in action
+1. **React Application** - Full React project with proper structure (Recommended)
+2. **React POC (HTML)** - Single-file React demo with side-by-side comparison
+3. **Interactive Simulation** - Vanilla JS simulation showing the bug in action
 
 ## Repository Structure
 
-### React POC Files
+### 1. React Application (Proper Project)
+**react-mfe-simulation/** - Production-ready React application
+- **Vite + React 18** setup with modern build tooling
+- **Separate JSX components** for each microfrontend
+- **Component-based architecture** with proper organization
+- **Real-time event logging** and interactive controls
+- [See react-mfe-simulation/README.md for full documentation](react-mfe-simulation/README.md)
+
+### 2. React POC Files (Single HTML File)
 1. **event-listener-poc.html** - Original POC (saved for reference)
 2. **event-listener-poc-FIXED.html** - Corrected version that works properly
 3. **VERIFICATION_REPORT.md** - Detailed technical verification report
 
-### Interactive Simulation
-4. **simulation/** - Self-contained interactive simulation project
-   - **index.html** - Interactive UI for demonstrating the bug
-   - **simulation.js** - Core simulation logic
-   - **README.md** - Detailed usage instructions
-   - **package.json** - Project metadata
+### 3. Interactive Simulation (Vanilla JS)
+**simulation/** - Self-contained browser-based simulation
+- **index.html** - Interactive UI for demonstrating the bug
+- **simulation.js** - Core simulation logic
+- **README.md** - Detailed usage instructions
+- **package.json** - Project metadata
 
 ## 🚀 Quick Start
 
-### Option 1: Interactive Simulation (Recommended for Learning)
+### Option 1: React Application (Recommended for Production)
+```bash
+cd react-mfe-simulation
+npm install
+npm run dev
+# Open http://localhost:5173
+```
+[Full setup instructions →](react-mfe-simulation/README.md)
+
+**Features:**
+- ✅ Proper React project structure with separate JSX files
+- ✅ Side-by-side comparison of buggy vs. fixed components
+- ✅ Interactive mount/unmount controls
+- ✅ Real-time event logging with color coding
+- ✅ Live statistics and code examples
+
+### Option 2: Interactive Simulation (No Installation Required)
 ```bash
 cd simulation
 open index.html  # or just drag into browser
 ```
-[See simulation/README.md for full instructions](simulation/README.md)
+[Full usage guide →](simulation/README.md)
 
-### Option 2: React POC (Side-by-Side Comparison)
+**Features:**
+- ✅ No build tools or dependencies required
+- ✅ Runs directly in any modern browser
+- ✅ Add/remove components dynamically
+- ✅ Visualize listener accumulation in real-time
+
+### Option 3: React POC HTML (Quick Demo)
 ```bash
 open event-listener-poc-FIXED.html  # or drag into browser
 ```
+
+**Features:**
+- ✅ Single HTML file with React via CDN
+- ✅ Side-by-side buggy and fixed components
+- ✅ Quick demonstration without installation
 
 ---
 
