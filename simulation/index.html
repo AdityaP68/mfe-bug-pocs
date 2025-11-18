@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MFE Event Listener Bug Simulation</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 16px;
+        }
+
+        .controls {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .controls h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 20px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+
+        button {
+            padding: 12px 24px;
+            font-size: 14px;
+            font-weight: 600;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .btn-add {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .btn-remove {
+            background: #f44336;
+            color: white;
+        }
+
+        .btn-trigger {
+            background: #2196F3;
+            color: white;
+        }
+
+        .btn-reset {
+            background: #FF9800;
+            color: white;
+        }
+
+        .status {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .status-item:last-child {
+            border-bottom: none;
+        }
+
+        .status-label {
+            font-weight: 600;
+            color: #555;
+        }
+
+        .status-value {
+            color: #333;
+            font-family: 'Courier New', monospace;
+        }
+
+        .components {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .component {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .component h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+
+        .component-info {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 10px;
+        }
+
+        .log-container {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+
+        .log-container h2 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 20px;
+        }
+
+        .log {
+            background: #1e1e1e;
+            border-radius: 8px;
+            padding: 15px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+        }
+
+        .log-entry {
+            padding: 4px 0;
+            border-bottom: 1px solid #333;
+        }
+
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+
+        .log-time {
+            color: #888;
+            margin-right: 10px;
+        }
+
+        .log-attach { color: #ff6b6b; }
+        .log-remove { color: #51cf66; }
+        .log-trigger { color: #339af0; }
+        .log-execute { color: #ffd43b; }
+        .log-block { color: #ff8787; }
+        .log-info { color: #aaa; }
+
+        .warning-box {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+
+        .warning-box h3 {
+            color: #856404;
+            margin-bottom: 8px;
+        }
+
+        .warning-box p {
+            color: #856404;
+            margin: 5px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🧩 Microfrontend Event Listener Bug Simulation</h1>
+            <p class="subtitle">Demonstrates how event listeners accumulate and cause race conditions</p>
+        </header>
+
+        <div class="controls">
+            <h2>Simulation Controls</h2>
+            <div class="button-group">
+                <button class="btn-add" onclick="addComponent()">➕ Add Component (Simulate Mount)</button>
+                <button class="btn-remove" onclick="removeComponent()">➖ Remove Component (Simulate Unmount)</button>
+                <button class="btn-trigger" onclick="triggerEvent()">📡 Trigger Global Event</button>
+                <button class="btn-reset" onclick="resetSimulation()">🔄 Reset Simulation</button>
+            </div>
+
+            <div class="warning-box">
+                <h3>⚠️ The Bug</h3>
+                <p><strong>Problem:</strong> Each component adds an event listener but never removes it (missing cleanup)</p>
+                <p><strong>Result:</strong> Listeners accumulate. First listener executes and blocks others with stopImmediatePropagation()</p>
+                <p><strong>Impact:</strong> If first listener has stale state/closure, events may fail or behave incorrectly</p>
+            </div>
+
+            <div class="status">
+                <div class="status-item">
+                    <span class="status-label">Active Components:</span>
+                    <span class="status-value" id="component-count">0</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Total Listeners Attached:</span>
+                    <span class="status-value" id="listener-count">0</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Events Triggered:</span>
+                    <span class="status-value" id="event-count">0</span>
+                </div>
+            </div>
+        </div>
+
+        <div id="components-container" class="components"></div>
+
+        <div class="log-container">
+            <h2>📋 Event Log</h2>
+            <div id="log" class="log"></div>
+        </div>
+    </div>
+
+    <script src="simulation.js"></script>
+</body>
+</html>

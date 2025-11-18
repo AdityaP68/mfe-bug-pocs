@@ -1,0 +1,92 @@
+.event-log-container {
+  background: white;
+  border-radius: 12px;
+  padding: 25px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+.log-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+  padding-bottom: 15px;
+  border-bottom: 2px solid #f0f0f0;
+}
+
+.log-header h2 {
+  color: #333;
+  margin: 0;
+}
+
+.btn-clear {
+  background: #f44336;
+  color: white;
+  padding: 8px 16px;
+  font-size: 12px;
+}
+
+.log-content {
+  background: #1e1e1e;
+  border-radius: 8px;
+  padding: 15px;
+  max-height: 400px;
+  overflow-y: auto;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+}
+
+.log-empty {
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.log-empty p {
+  color: #888;
+  font-size: 14px;
+}
+
+.log-entry {
+  padding: 4px 0;
+  border-bottom: 1px solid #333;
+  line-height: 1.6;
+}
+
+.log-entry:last-child {
+  border-bottom: none;
+}
+
+.log-time {
+  color: #888;
+  margin-right: 10px;
+}
+
+.log-message {
+  color: #d4d4d4;
+}
+
+.log-attach .log-message { color: #ff6b6b; }
+.log-remove .log-message { color: #51cf66; }
+.log-trigger .log-message { color: #339af0; }
+.log-execute .log-message { color: #ffd43b; }
+.log-block .log-message { color: #ff8787; }
+.log-info .log-message { color: #aaa; }
+
+/* Scrollbar styling for webkit browsers */
+.log-content::-webkit-scrollbar {
+  width: 8px;
+}
+
+.log-content::-webkit-scrollbar-track {
+  background: #2d2d2d;
+  border-radius: 4px;
+}
+
+.log-content::-webkit-scrollbar-thumb {
+  background: #555;
+  border-radius: 4px;
+}
+
+.log-content::-webkit-scrollbar-thumb:hover {
+  background: #666;
+}

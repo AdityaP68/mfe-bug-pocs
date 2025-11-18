@@ -1,0 +1,12 @@
+{
+  "name": "mfe-event-listener-simulation",
+  "version": "1.0.0",
+  "description": "Simple simulation of microfrontend event listener accumulation bug",
+  "main": "index.html",
+  "scripts": {
+    "start": "python3 -m http.server 8080 || python -m SimpleHTTPServer 8080"
+  },
+  "keywords": ["microfrontend", "event-listener", "bug", "simulation"],
+  "author": "",
+  "license": "MIT"
+}
